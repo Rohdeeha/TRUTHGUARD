@@ -9,7 +9,7 @@ class Incident(models.Model):
         LOGISTICS_FAILURE = 'LOGISTICS_FAILURE', 'Logistics / Equipment Failure'
         VIOLENCE = 'VIOLENCE', 'Violence / Intimidation'
         OTHER = 'OTHER', 'Other'
-
+        
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'Pending Review'
         VERIFIED = 'VERIFIED', 'Verified'
@@ -18,20 +18,24 @@ class Incident(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField()
-    incident_type = models.CharField(
+    
+    # We will use category here to match the serializers and views we wrote earlier
+    category = models.CharField(
         max_length=30,
         choices=IncidentType.choices,
         default=IncidentType.OTHER
     )
+    
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
         default=Status.PENDING
     )
-    # Allows reporters to submit sensitive reports anonymously
+    
+    is_tfgbv = models.BooleanField(default=False)
+    evidence_file = models.FileField(upload_to='evidence/', blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
     
-    # Tracks which user reported it (can be blank if anonymous)
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -45,4 +49,4 @@ class Incident(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"[{self.get_incident_type_display()}] {self.title} - {self.get_status_display()}"
+        return f"[{self.get_category_display()}] {self.title} - {self.get_status_display()}"
