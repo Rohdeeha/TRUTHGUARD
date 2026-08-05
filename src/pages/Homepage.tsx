@@ -1,94 +1,135 @@
 import { useState } from 'react';
-import { AlertTriangle, Share2 } from 'lucide-react';
+import { Search, Filter, AlertTriangle, CheckCircle, HelpCircle, Share2, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export default function HomePage() {
-    const [filter, setFilter] = useState('ALL');
-    const { t } = useTranslation();
+interface DebunkItem {
+    id: string;
+    claim: string;
+    verdict: 'FALSE' | 'MISLEADING' | 'VERIFIED' | 'UNVERIFIED';
+    explanation: string;
+    category: string;
+    date: string;
+    lga: string;
+}
 
-    const debunks = [
-        {
-            id: '1',
-            claim: 'Viral WhatsApp audio claiming INEC postponed Osun governorship election to August 22.',
-            fact: 'INEC confirms the Osun governorship election remains strictly scheduled for August 15, 2026. The audio is doctored.',
-            verdict: 'FAKE NEWS',
-            source: 'WhatsApp Forward',
-            date: 'Aug 4, 2026',
-        },
-        {
-            id: '2',
-            claim: 'Image showing alleged violence at a campaign rally in Osogbo.',
-            fact: 'Reverse image search proves the photo was taken during an election event in 2018, not 2026.',
-            verdict: 'MISLEADING',
-            source: 'X (Twitter)',
-            date: 'Aug 3, 2026',
+export default function HomePage() {
+    const { t } = useTranslation();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('All');
+
+    // Dynamically pull translated debunk cards from i18n
+    const debunksList = (t('debunkList', { returnObjects: true }) as DebunkItem[]) || [];
+
+    const getVerdictBadge = (verdict: DebunkItem['verdict']) => {
+        switch (verdict) {
+            case 'FALSE':
+                return (
+                    <span className="inline-flex items-center gap-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 font-black text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        <AlertTriangle className="w-3 h-3" /> {t('home.verdictFalse')}
+                    </span>
+                );
+            case 'MISLEADING':
+                return (
+                    <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        <AlertTriangle className="w-3 h-3" /> {t('home.verdictMisleading')}
+                    </span>
+                );
+            case 'VERIFIED':
+                return (
+                    <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        <CheckCircle className="w-3 h-3" /> {t('home.verdictVerified')}
+                    </span>
+                );
+            default:
+                return (
+                    <span className="inline-flex items-center gap-1 bg-gray-500/10 border border-gray-500/30 text-gray-400 font-black text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        <HelpCircle className="w-3 h-3" /> {t('home.verdictUnverified')}
+                    </span>
+                );
         }
-    ];
+    };
 
     return (
-        <div className="max-w-6xl mx-auto px-4 py-8">
-            {/* Banner */}
-            <div className="bg-gradient-to-r from-[#0E243F] to-[#071D38] border border-[#00B8C4]/30 rounded-2xl p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
-                <div className="space-y-2 max-w-2xl">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E05A2B]/10 border border-[#E05A2B] rounded-full text-[#E05A2B] text-xs font-semibold">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        {t('home.badge')}
-                    </div>
-                    <h1 className="text-2xl md:text-4xl font-extrabold text-white tracking-tight">
-                        {t('home.title')}
-                    </h1>
-                    <p className="text-gray-300 text-sm md:text-base">
-                        {t('home.subtitle')}
-                    </p>
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+            {/* Hero Header */}
+            <div className="text-center max-w-3xl mx-auto space-y-4">
+                <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                    {t('home.heroTitle')}
+                </h1>
+                <p className="text-gray-400 text-sm sm:text-base leading-relaxed">
+                    {t('home.heroSubtitle')}
+                </p>
+            </div>
+
+            {/* Search & Filter Section */}
+            <div className="bg-[#0E243F] border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={t('home.searchPlaceholder')}
+                        className="w-full bg-[#071D38] border border-gray-700 text-white pl-12 pr-4 py-3 rounded-xl focus:border-[#00B8C4] focus:ring-1 focus:ring-[#00B8C4] outline-none text-sm transition-all"
+                    />
+                </div>
+
+                {/* Categories */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                    <Filter className="w-4 h-4 text-[#00B8C4] shrink-0" />
+                    {[
+                        { id: 'All', label: t('home.filterAll') },
+                        { id: 'Election Day', label: t('home.filterElectionDay') },
+                        { id: 'Candidates', label: t('home.filterCandidates') },
+                        { id: 'INEC & BVAS', label: t('home.filterINEC') },
+                        { id: 'Security', label: t('home.filterSecurity') },
+                    ].map((cat) => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat.id)}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${selectedCategory === cat.id
+                                    ? 'bg-[#00B8C4] text-[#071D38]'
+                                    : 'bg-[#071D38] text-gray-400 hover:text-white border border-gray-800'
+                                }`}
+                        >
+                            {cat.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto w-full pb-2 mb-6">
-                {['ALL', 'FAKE NEWS', 'MISLEADING', 'TFGBV'].map((tag) => (
-                    <button
-                        key={tag}
-                        onClick={() => setFilter(tag)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${filter === tag
-                                ? 'bg-[#00B8C4] text-[#071D38]'
-                                : 'bg-[#0E243F] text-gray-300 hover:bg-gray-800 border border-gray-700'
-                            }`}
+            {/* Debunks List - 100% Multilingual */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.isArray(debunksList) && debunksList.map((item) => (
+                    <div
+                        key={item.id}
+                        className="bg-[#0E243F] border border-gray-800 hover:border-gray-700 rounded-2xl p-6 flex flex-col justify-between transition-all hover:shadow-xl space-y-4"
                     >
-                        {tag}
-                    </button>
-                ))}
-            </div>
-
-            {/* Debunk Cards Grid */}
-            <div className="grid md:grid-cols-2 gap-6">
-                {debunks.map((card) => (
-                    <div key={card.id} className="bg-[#0E243F] border border-gray-800 hover:border-[#00B8C4]/40 rounded-xl overflow-hidden shadow-lg flex flex-col justify-between">
-                        <div className="p-6 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="px-2.5 py-1 bg-[#E05A2B]/20 text-[#E05A2B] border border-[#E05A2B]/40 text-xs font-bold rounded">
-                                    {card.verdict}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                                <span className="font-semibold text-[#00B8C4] bg-[#071D38] px-2.5 py-1 rounded-md border border-gray-800">
+                                    {item.lga}
                                 </span>
-                                <span className="text-xs text-gray-400">{card.date}</span>
+                                <span>{item.date}</span>
                             </div>
 
-                            <div>
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-[#E05A2B] mb-1">{t('home.claimed')}</h4>
-                                <p className="text-white font-medium text-sm leading-relaxed">{card.claim}</p>
-                            </div>
+                            <div>{getVerdictBadge(item.verdict)}</div>
 
-                            <div className="p-3 bg-[#071D38] rounded-lg border border-gray-800">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-[#00B8C4] mb-1">{t('home.fact')}</h4>
-                                <p className="text-gray-300 text-xs leading-relaxed">{card.fact}</p>
-                            </div>
+                            <h3 className="text-base font-bold text-white leading-snug">
+                                "{item.claim}"
+                            </h3>
+
+                            <p className="text-xs text-gray-300 leading-relaxed border-t border-gray-800/60 pt-3">
+                                {item.explanation}
+                            </p>
                         </div>
 
-                        <div className="px-6 py-3 bg-[#071D38]/50 border-t border-gray-800/60 flex items-center justify-between">
-                            <span className="text-xs text-gray-400">Source: <strong className="text-gray-200">{card.source}</strong></span>
-                            <button
-                                onClick={() => alert(`Share debunk #${card.id}`)}
-                                className="inline-flex items-center gap-1.5 text-xs text-[#00B8C4] hover:underline font-semibold cursor-pointer"
-                            >
-                                <Share2 className="w-3.5 h-3.5" /> {t('home.share')}
+                        <div className="pt-2 flex items-center justify-between border-t border-gray-800/80 text-xs">
+                            <button className="text-[#00B8C4] hover:underline font-bold flex items-center gap-1">
+                                {t('home.shareDebunk')} <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="text-gray-400 hover:text-white flex items-center gap-1 font-semibold">
+                                {t('home.readFullAnalysis')} <ArrowRight className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     </div>
