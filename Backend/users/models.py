@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from core.utils import hash_pii  # <-- 1. Import your hashing function
-
+from core.utils import hash_pii
 
 class User(AbstractUser):
     # User roles
