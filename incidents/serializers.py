@@ -3,6 +3,9 @@ from .models import Incident, SocialPost
 
 
 class IncidentSerializer(serializers.ModelSerializer):
+    # Optional: Alias field in case frontend posts 'image' instead of 'evidence_file'
+    image = serializers.FileField(source='evidence_file', required=False, allow_null=True, write_only=True)
+
     class Meta:
         model = Incident
         fields = [
@@ -37,11 +40,32 @@ class IncidentSerializer(serializers.ModelSerializer):
             'category', 
             'is_tfgbv', 
             'is_anonymous',
-            'evidence_file'
+            'evidence_file',
+            'image',  # Write-only alias for evidence_file
         ]
         
         # Read-only fields that citizens shouldn't spoof on creation
         read_only_fields = ['id', 'status', 'created_at', 'updated_at']
+
+        # Make public form fields optional so Django doesn't reject missing/empty inputs
+        extra_kwargs = {
+            'description': {'required': False, 'allow_blank': True, 'default': ''},
+            'claim': {'required': False, 'allow_blank': True, 'default': ''},
+            'location': {'required': False, 'allow_blank': True, 'default': ''},
+            'category': {'required': False, 'allow_blank': True},
+            'is_anonymous': {'required': False},
+            'is_tfgbv': {'required': False},
+            'evidence_file': {'required': False, 'allow_null': True},
+        }
+
+    def validate(self, attrs):
+        """
+        Fallback logic: If frontend sends 'claim' (WETIN DEM TALK) or 'title' 
+        but leaves 'description' empty, automatically use 'claim' as the description.
+        """
+        if not attrs.get('description'):
+            attrs['description'] = attrs.get('claim') or attrs.get('title') or ''
+        return super().validate(attrs)
 
 
 class IncidentUpdateSerializer(serializers.ModelSerializer):
