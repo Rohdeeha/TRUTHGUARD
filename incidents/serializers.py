@@ -3,8 +3,13 @@ from .models import Incident, SocialPost
 
 
 class IncidentSerializer(serializers.ModelSerializer):
-    # Optional: Alias field in case frontend posts 'image' instead of 'evidence_file'
+    # 1. WRITE-ONLY ALIASES: Accepts 'image' or 'media' from frontend FormData
     image = serializers.FileField(source='evidence_file', required=False, allow_null=True, write_only=True)
+    media = serializers.FileField(source='evidence_file', required=False, allow_null=True, write_only=True)
+
+    # 2. READ-ONLY URL GETTERS: Always outputs complete Cloudinary URLs
+    evidence_file = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField() # Extra helper field for frontend
 
     class Meta:
         model = Incident
@@ -40,8 +45,14 @@ class IncidentSerializer(serializers.ModelSerializer):
             'category', 
             'is_tfgbv', 
             'is_anonymous',
+            
+            # Media Output Fields (Read-Only)
             'evidence_file',
-            'image',  # Write-only alias for evidence_file
+            'image_url',
+            
+            # Media Input Aliases (Write-Only)
+            'image', 
+            'media', 
         ]
         
         # Read-only fields that citizens shouldn't spoof on creation
@@ -55,8 +66,20 @@ class IncidentSerializer(serializers.ModelSerializer):
             'category': {'required': False, 'allow_blank': True},
             'is_anonymous': {'required': False},
             'is_tfgbv': {'required': False},
-            'evidence_file': {'required': False, 'allow_null': True},
         }
+
+    def get_evidence_file(self, obj):
+        """Safely extracts full Cloudinary URL string or returns None"""
+        if obj.evidence_file:
+            try:
+                return obj.evidence_file.url
+            except Exception:
+                return str(obj.evidence_file)
+        return None
+
+    def get_image_url(self, obj):
+        """Alias URL helper for frontend team convenience"""
+        return self.get_evidence_file(obj)
 
     def validate(self, attrs):
         """
