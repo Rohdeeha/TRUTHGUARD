@@ -19,17 +19,22 @@ import cloudinary.api
 
 mimetypes.add_type("text/css", ".css", True)
 
-SECRET_KEY = os.environ.get('SECRET_KEY' )
+SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
+    # Cloudinary Storage MUST come before staticfiles
+    'cloudinary_storage',
+    
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    'cloudinary',
     'django_filters',
     
     # Third party apps
@@ -49,6 +54,12 @@ cloudinary.config(
     api_secret=os.getenv('CLOUDINARY_API_SECRET', ''),
     secure=True
 )
+
+# Tell Django to use Cloudinary for all media uploads (FileField / ImageField)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # High priority for CORS requests
@@ -89,6 +100,7 @@ DATABASES = {
         ssl_require=not DEBUG
     )
 }
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -114,8 +126,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '10/minute',  # Unauthenticated whistleblowers
-        'user': '100/minute'  # Logged-in Fact-Checkers
+        'anon': '10/minute',
+        'user': '100/minute'
     },  
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
@@ -128,6 +140,5 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
     "https://truthguard-41fu.onrender.com"
 ]

@@ -7,7 +7,7 @@ class IncidentSerializer(serializers.ModelSerializer):
     image = serializers.FileField(source='evidence_file', required=False, allow_null=True, write_only=True)
     media = serializers.FileField(source='evidence_file', required=False, allow_null=True, write_only=True)
 
-    # 2. READ-ONLY URL GETTERS: Always outputs complete Cloudinary URLs
+    # 2. READ-ONLY URL GETTERS: Always outputs complete HTTPS URLs
     evidence_file = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField() # Extra helper field for frontend
 
@@ -69,13 +69,26 @@ class IncidentSerializer(serializers.ModelSerializer):
         }
 
     def get_evidence_file(self, obj):
-        """Safely extracts full Cloudinary URL string or returns None"""
-        if obj.evidence_file:
-            try:
-                return obj.evidence_file.url
-            except Exception:
-                return str(obj.evidence_file)
-        return None
+        """Safely extracts full HTTPS Cloudinary URL string or appends API domain"""
+        if not obj.evidence_file:
+            return None
+            
+        try:
+            url = obj.evidence_file.url
+        except Exception:
+            url = str(obj.evidence_file)
+
+        # 1. If it's already an absolute URL (Cloudinary), return as is
+        if url.startswith('http://') or url.startswith('https://'):
+            return url
+
+        # 2. If it's a relative path, construct absolute URI using request context
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+
+        # 3. Fallback: Prepend backend Render domain
+        return f"https://truthguard-api-sut7.onrender.com{url}"
 
     def get_image_url(self, obj):
         """Alias URL helper for frontend team convenience"""
@@ -83,8 +96,8 @@ class IncidentSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """
-        Fallback logic: If frontend sends 'claim' (WETIN DEM TALK) or 'title' 
-        but leaves 'description' empty, automatically use 'claim' as the description.
+        Fallback logic: If frontend sends 'claim' or 'title' 
+        but leaves 'description' empty, automatically use 'claim' as description.
         """
         if not attrs.get('description'):
             attrs['description'] = attrs.get('claim') or attrs.get('title') or ''
@@ -95,7 +108,6 @@ class IncidentUpdateSerializer(serializers.ModelSerializer):
     """Specialized serializer for Fact-Checkers to update status/tags"""
     class Meta:
         model = Incident
-        # We only expose the fields fact-checkers are allowed to change
         fields = ['status', 'is_tfgbv']
 
 
