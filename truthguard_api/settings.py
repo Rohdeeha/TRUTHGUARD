@@ -55,8 +55,6 @@ cloudinary.config(
     secure=True
 )
 
-# Tell Django to use Cloudinary for all media uploads (FileField / ImageField)
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -115,9 +113,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# Add this line to satisfy the cloudinary_storage package check
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Modern Django > 4.2 setup for file handling
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
