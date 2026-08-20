@@ -13,14 +13,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-# IMPORTANT: Imported the new FactCheckArticle model and serializer
 from core.permissions import IsFactChecker, IsTFGBVLegalExpert
 from .models import Incident, SocialPost, FactCheckArticle
 from .serializers import (
     IncidentSerializer,
     IncidentUpdateSerializer,
     SocialPostSerializer,
-    FactCheckArticleSerializer
+    FactCheckArticleSerializer,
 )
 from .utils import hash_phone_number, sanitize_and_upload_image
 
@@ -41,9 +40,8 @@ class CitizenIncidentCreateView(generics.CreateAPIView):
 
 
 class PublicDebunkedFeedView(generics.ListAPIView):
-    """Public feed showing PUBLISHED fact-checks from the new FactCheckArticle model."""
-    # Updated to query FactCheckArticle instead of Incident
-    queryset = FactCheckArticle.objects.select_related('incident', 'author').order_by('-created_at')
+    """Public feed showing published fact-checks from the FactCheckArticle model."""
+    queryset = FactCheckArticle.objects.select_related('fact_checker').order_by('-created_at')
     serializer_class = FactCheckArticleSerializer
     permission_classes = [AllowAny]
     pagination_class = DebunkedFeedPagination
@@ -54,13 +52,10 @@ class KanbanTriageView(generics.ListAPIView):
     serializer_class = IncidentSerializer
     permission_classes = [AllowAny]  # TODO: Revert to [IsAuthenticated] in production
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    
-    # Updated search fields to match the new Incident model structure
     search_fields = ['claim', 'who_said_it', 'where_and_when', 'location', 'category']
     filterset_fields = ['status', 'is_tfgbv']
 
     def get_queryset(self):
-        # We no longer need select_related('fact_checker') here since that moved to the Article
         queryset = Incident.objects.all().order_by('-created_at')
         
         status_param = self.request.query_params.get('status')
@@ -76,8 +71,12 @@ class IncidentStatusUpdateView(generics.UpdateAPIView):
     serializer_class = IncidentUpdateSerializer
     permission_classes = [AllowAny]  # TODO: Revert to [IsAuthenticated] in production
     http_method_names = ['patch']
-    
-    # Notice: fact_checker binding was removed here since authors are now tied to FactCheckArticle
+
+    def perform_update(self, serializer):
+        if self.request.user and self.request.user.is_authenticated:
+            serializer.save(fact_checker=self.request.user)
+        else:
+            serializer.save()
 
 
 class SpecializedTFGBVView(generics.ListAPIView):
@@ -238,7 +237,7 @@ class WhatsAppWebhookView(APIView):
                                     evidence_url = sanitize_and_upload_image(img_buffer)
 
                         if body_text:
-                            # Updated to map to 'claim' and 'who_said_it' instead of title/description
+                            # Updated to match the new Incident model fields (claim & who_said_it)
                             Incident.objects.create(
                                 who_said_it=f"WhatsApp Report [{hashed_phone[:8]}]",
                                 claim=body_text,
@@ -249,5 +248,7 @@ class WhatsAppWebhookView(APIView):
                             )
 
             return Response({"status": "SUCCESS"}, status=status.HTTP_200_OK)
-        except Exception:
+        except Exception as e:
+            # Tip: During debugging, you can print(e) or log it to see any silent failures
+            print(f"Webhook Error: {e}")
             return Response({"status": "HANDLED_WITH_ERRORS"}, status=status.HTTP_200_OK)
