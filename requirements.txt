@@ -5,9 +5,11 @@ cloudinary==1.45.0
 dj-database-url==3.1.2
 dj3-cloudinary-storage==0.0.6
 Django==6.0.8
+django-ckeditor-5==0.2.20
 django-cors-headers==4.9.0
 django-filter==26.1
 django-ipware==7.0.1
+django-unfold==0.104.1
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 gunicorn==26.0.0
