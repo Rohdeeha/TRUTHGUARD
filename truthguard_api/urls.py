@@ -11,8 +11,8 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    # Nested cleanly under incidents/
-    path('api/incidents/', include('incidents.urls')), 
     
     path('api/core/', include('core.urls')),
+    path('ckeditor5/', include('django_ckeditor_5.urls')),
+    path('api/', include('incidents.urls')),
 ]

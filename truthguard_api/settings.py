@@ -24,8 +24,7 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
-    # Cloudinary Storage MUST come before staticfiles
-    'cloudinary_storage',
+    "unfold",  # Overhauls Django Admin UI with modern Tailwind design
     
     'django.contrib.admin',
     'django.contrib.auth',
@@ -45,6 +44,7 @@ INSTALLED_APPS = [
     'core',
     'users',
     'incidents',
+    'django_ckeditor_5',
 ]
 
 # Explicitly configure Cloudinary using env variables safely
@@ -54,7 +54,25 @@ cloudinary.config(
     api_secret=os.getenv('CLOUDINARY_API_SECRET', ''),
     secure=True
 )
-
+CKEDITOR_5_CONFIGS = {
+    'default': {
+        'toolbar': ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', 'imageUpload'],
+    },
+    'extends': {
+        'toolbar': [
+            'heading', '|', 'bold', 'italic', 'underline', 'strikethrough', '|',
+            'link', 'uploadImage', 'blockQuote', 'insertTable', 'mediaEmbed', '|',
+            'bulletedList', 'numberedList', '|', 'undo', 'redo'
+        ],
+        'heading': {
+            'options': [
+                {'model': 'paragraph', 'title': 'Paragraph', 'class': 'ck-heading_paragraph'},
+                {'model': 'heading1', 'view': 'h1', 'title': 'Heading 1', 'class': 'ck-heading_heading1'},
+                {'model': 'heading2', 'view': 'h2', 'title': 'Heading 2', 'class': 'ck-heading_heading2'},
+            ]
+        }
+    }
+}
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -111,11 +129,13 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Modern Django > 4.2 setup for file handling
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+
+CKEDITOR_5_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
 STORAGES = {
     "default": {
@@ -152,3 +172,17 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "https://truthguard-41fu.onrender.com"
 ]
+
+UNFOLD = {
+    "SITE_TITLE": "TruthGuard",
+    "SITE_HEADER": "Backend Situation room",
+    "SITE_URL": "/admin/",
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+    },
+    "LOGIN": {
+        "title": "Welcome back to TruthGuard",
+        "redirect_after": "/admin/",
+    },
+}

@@ -1,7 +1,10 @@
 from django.conf import settings
 from django.db import models
+from django_ckeditor_5.fields import CKEditor5Field
 
-
+# ==========================================
+# 1. RAW INTAKE MODEL (Citizen Submissions)
+# ==========================================
 class Incident(models.Model):
     class IncidentType(models.TextChoices):
         VOTER_SUPPRESSION = 'VOTER_SUPPRESSION', 'Voter Suppression'
@@ -12,65 +15,97 @@ class Incident(models.Model):
         INEC = 'INEC', 'INEC'
         OTHER = 'OTHER', 'Other'
 
-    class Status(models.TextChoices):
+    class IntakeStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending Review'
-        VERIFIED = 'VERIFIED', 'Verified True'
-        MISLEADING = 'MISLEADING', 'Misleading'
-        FALSE = 'FALSE', 'False Report'
-        RESOLVED = 'RESOLVED', 'Resolved'
+        IN_REVIEW = 'IN_REVIEW', 'In Review'
+        PUBLISHED = 'PUBLISHED', 'Published (Fact-Checked)'
+        REJECTED = 'REJECTED', 'Rejected (Spam/Unverifiable)'
 
-    # Base Text Fields
-    title = models.CharField(max_length=255)
-    claim = models.TextField(blank=True, null=True)
-    description = models.TextField()
+    claim = models.TextField(help_text="The Statement / Claim")
+    who_said_it = models.CharField(max_length=255, blank=True, null=True, help_text="")
+    where_and_when = models.CharField(max_length=255, blank=True, null=True, help_text="")
+    evidence_links = models.TextField(blank=True, null=True, help_text="")
+    evidence_file = models.FileField(upload_to='evidence/', blank=True, null=True)
 
-    # Multi-Language Content Fields
-    title_en = models.CharField(max_length=255, blank=True, null=True)
-    claim_en = models.TextField(blank=True, null=True)
-    summary_en = models.TextField(blank=True, null=True)
-
-    title_yo = models.CharField(max_length=255, blank=True, null=True)
-    claim_yo = models.TextField(blank=True, null=True)
-    summary_yo = models.TextField(blank=True, null=True)
-
-    title_pcm = models.CharField(max_length=255, blank=True, null=True)
-    claim_pcm = models.TextField(blank=True, null=True)
-    summary_pcm = models.TextField(blank=True, null=True)
-
-    # Incident Categorization & Status
     category = models.CharField(
         max_length=30,
         choices=IncidentType.choices,
         default=IncidentType.OTHER
     )
-
     status = models.CharField(
         max_length=20,
-        choices=Status.choices,
-        default=Status.PENDING
+        choices=IntakeStatus.choices,
+        default=IntakeStatus.PENDING
     )
 
-    # Metadata & Flags
     location = models.CharField(max_length=255, blank=True, null=True)
     is_tfgbv = models.BooleanField(default=False)
-    evidence_file = models.FileField(upload_to='evidence/', blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
 
-    reporter = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"[{self.get_status_display()}] {self.claim[:30]}..."
+
+
+# ==========================================
+# 2. EDITORIAL MODEL (Published Articles)
+# ==========================================
+class FactCheckArticle(models.Model):
+    class Verdict(models.TextChoices):
+        FALSE = 'FALSE', 'False'
+        MISLEADING = 'MISLEADING', 'Misleading'
+        TRUE = 'TRUE', 'Verified True'
+
+    title = models.CharField(max_length=255, help_text="Headline for the live feed")
+    byline = models.CharField(
+        max_length=255,
+        help_text="The author's name to display on the frontend (e.g., 'By: Eniola Amadu')"
+    )
+    verdict = models.CharField(
+        max_length=20, 
+        choices=Verdict.choices,
+        help_text="This drives the red rubber stamp on the frontend"
+    )
+    featured_image = models.ImageField(
+        upload_to='fact_checks/hero_images/', 
+        blank=True, 
         null=True,
+        help_text="The main picture displayed on the live feed."
+    )
+    content = CKEditor5Field(
+        'Fact-Check Writeup', 
+        config_name='extends',
+        help_text="Formatted report, blockquotes, and analysis produced by fact-checkers"
+    )
+
+    related_incidents = models.ManyToManyField(
+        Incident, 
+        related_name='fact_checks', 
         blank=True,
-        related_name='incidents'
+        help_text="Link the raw citizen tips that provided evidence for this article"
+    )
+    
+    fact_checker = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True,
+        related_name='authored_articles',
+        help_text="Internal user who created this in the dashboard"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"[{self.get_category_display()}] {self.title} - {self.get_status_display()}"
+        return f"{self.title} - {self.get_verdict_display()}"
 
 
+# ==========================================
+# 3. SOCIAL LISTENING MODEL 
+# ==========================================
 class SocialPost(models.Model):
     PLATFORM_CHOICES = [
         ('twitter', 'Twitter/X'),

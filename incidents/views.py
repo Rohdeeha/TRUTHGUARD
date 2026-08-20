@@ -2,21 +2,25 @@ import io
 import requests
 import cloudinary.utils
 from django.conf import settings
-from django.db.models import Count, F
+from django.db.models import Count
 from django.db.models.functions import TruncDate, TruncHour
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, filters, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
+# IMPORTANT: Imported the new FactCheckArticle model and serializer
 from core.permissions import IsFactChecker, IsTFGBVLegalExpert
-from .models import Incident, SocialPost
+from .models import Incident, SocialPost, FactCheckArticle
 from .serializers import (
     IncidentSerializer,
     IncidentUpdateSerializer,
     SocialPostSerializer,
+    FactCheckArticleSerializer
 )
 from .utils import hash_phone_number, sanitize_and_upload_image
 
@@ -29,37 +33,36 @@ class DebunkedFeedPagination(PageNumberPagination):
 
 
 class CitizenIncidentCreateView(generics.CreateAPIView):
-    """Task 1 & 2: Public, unauthenticated endpoint for citizens to submit reports."""
+    """Public, unauthenticated endpoint for citizens to submit reports."""
     queryset = Incident.objects.all()
     serializer_class = IncidentSerializer
     permission_classes = [AllowAny]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 
 class PublicDebunkedFeedView(generics.ListAPIView):
-    """Task 3 & 4: Public feed showing debunked/false incidents with pagination (10/page)."""
-    queryset = Incident.objects.filter(
-        status__in=['FALSE', 'MISLEADING', 'VERIFIED_FALSE', 'Debunked', 'Debunked False']
-    ).order_by('-created_at')
-    serializer_class = IncidentSerializer
+    """Public feed showing PUBLISHED fact-checks from the new FactCheckArticle model."""
+    # Updated to query FactCheckArticle instead of Incident
+    queryset = FactCheckArticle.objects.select_related('incident', 'author').order_by('-created_at')
+    serializer_class = FactCheckArticleSerializer
     permission_classes = [AllowAny]
     pagination_class = DebunkedFeedPagination
 
 
 class KanbanTriageView(generics.ListAPIView):
-    """
-    Internal Triage Queue for Fact-Checkers / Situation Room.
-    Temporarily set permission_classes to AllowAny so missing JWT tokens on frontend don't block requests.
-    """
+    """Internal Triage Queue for Fact-Checkers / Situation Room."""
     serializer_class = IncidentSerializer
-    permission_classes = [AllowAny]  # TODO: Revert to [IsAuthenticated] or [IsFactChecker] when auth flow is active
+    permission_classes = [AllowAny]  # TODO: Revert to [IsAuthenticated] in production
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'description', 'location', 'category']
+    
+    # Updated search fields to match the new Incident model structure
+    search_fields = ['claim', 'who_said_it', 'where_and_when', 'location', 'category']
     filterset_fields = ['status', 'is_tfgbv']
 
     def get_queryset(self):
+        # We no longer need select_related('fact_checker') here since that moved to the Article
         queryset = Incident.objects.all().order_by('-created_at')
         
-        # If frontend requests a specific status filter (e.g. ?status=Pending Review)
         status_param = self.request.query_params.get('status')
         if status_param:
             queryset = queryset.filter(status__iexact=status_param)
@@ -68,11 +71,13 @@ class KanbanTriageView(generics.ListAPIView):
 
 
 class IncidentStatusUpdateView(generics.UpdateAPIView):
-    """Allows Fact-Checkers to patch ticket states (e.g., Pending -> Verified)."""
+    """Allows Fact-Checkers to patch ticket states."""
     queryset = Incident.objects.all()
     serializer_class = IncidentUpdateSerializer
     permission_classes = [AllowAny]  # TODO: Revert to [IsAuthenticated] in production
     http_method_names = ['patch']
+    
+    # Notice: fact_checker binding was removed here since authors are now tied to FactCheckArticle
 
 
 class SpecializedTFGBVView(generics.ListAPIView):
@@ -93,17 +98,12 @@ class SocialListeningFeedView(generics.ListAPIView):
 
 
 class IncidentAnalyticsView(APIView):
-    """
-    Analytics Dashboard View:
-    Returns category percentage breakdown, hourly reporting trends,
-    daily volume trends, and overall status summaries.
-    """
+    """Analytics Dashboard View: category breakdown, volume trends, and status summaries."""
     permission_classes = [AllowAny]
 
     def get(self, request):
-        total_incidents = Incident.objects.count() or 1  # Prevents division by zero
+        total_incidents = Incident.objects.count() or 1
 
-        # 1. Category Percentage Breakdown
         category_counts = (
             Incident.objects.values('category')
             .annotate(count=Count('id'))
@@ -118,7 +118,6 @@ class IncidentAnalyticsView(APIView):
             for item in category_counts
         ]
 
-        # 2. Hourly Report Volume
         hourly_volume = (
             Incident.objects.annotate(hour=TruncHour('created_at'))
             .values('hour')
@@ -126,7 +125,6 @@ class IncidentAnalyticsView(APIView):
             .order_by('hour')
         )
 
-        # 3. Daily Report Volume 
         volume_trend = (
             Incident.objects.annotate(date=TruncDate('created_at'))
             .values('date')
@@ -134,7 +132,6 @@ class IncidentAnalyticsView(APIView):
             .order_by('date')
         )
 
-        # 4. Status Summary 
         status_counts = (
             Incident.objects.values('status')
             .annotate(count=Count('id'))
@@ -151,10 +148,7 @@ class IncidentAnalyticsView(APIView):
 
 
 class GenerateDebunkCardView(APIView):
-    """
-    Accepts a 'claim' and a 'fact', and returns a dynamically generated
-    Cloudinary image URL with text overlaid on a base template.
-    """
+    """Generates dynamic Cloudinary card image URLs with text overlays."""
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -167,7 +161,7 @@ class GenerateDebunkCardView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        image_url, options = cloudinary.utils.cloudinary_url(
+        image_url, _ = cloudinary.utils.cloudinary_url(
             "debunk_template",
             transformation=[
                 {
@@ -194,10 +188,7 @@ class GenerateDebunkCardView(APIView):
 
 
 class WhatsAppWebhookView(APIView):
-    """
-    Webhook listener for WhatsApp Cloud API.
-    Handles Meta verification challenge (GET) and parses messages/media into Incident tickets (POST).
-    """
+    """Webhook listener for Meta WhatsApp Cloud API."""
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -207,7 +198,7 @@ class WhatsAppWebhookView(APIView):
 
         verify_token = getattr(settings, 'WHATSAPP_VERIFY_TOKEN', 'truthguard_secret')
         if mode == 'subscribe' and token == verify_token:
-            return Response(int(challenge), status=status.HTTP_200_OK)
+            return HttpResponse(challenge, content_type="text/plain", status=200)
         return Response({"error": "Verification token mismatch"}, status=status.HTTP_403_FORBIDDEN)
 
     def post(self, request):
@@ -247,9 +238,10 @@ class WhatsAppWebhookView(APIView):
                                     evidence_url = sanitize_and_upload_image(img_buffer)
 
                         if body_text:
+                            # Updated to map to 'claim' and 'who_said_it' instead of title/description
                             Incident.objects.create(
-                                title=f"WhatsApp Report [{hashed_phone[:8]}]",
-                                description=body_text,
+                                who_said_it=f"WhatsApp Report [{hashed_phone[:8]}]",
+                                claim=body_text,
                                 location="WhatsApp Webhook",
                                 is_anonymous=True,
                                 category="OTHER",
@@ -257,5 +249,5 @@ class WhatsAppWebhookView(APIView):
                             )
 
             return Response({"status": "SUCCESS"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"status": "HANDLED_WITH_ERRORS"}, status=status.HTTP_200_OK)
