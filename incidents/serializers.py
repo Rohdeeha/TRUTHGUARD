@@ -81,7 +81,6 @@ class FactCheckArticleSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
-            'summary',
             'verdict',
             'content',
             'cover_image',
