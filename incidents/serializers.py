@@ -70,45 +70,37 @@ class IncidentSerializer(serializers.ModelSerializer):
 
 class FactCheckArticleSerializer(serializers.ModelSerializer):
     """Serializer for the published fact-check feed"""
-    # Embed the original incident data for the frontend to display the source
-    incident_details = IncidentSerializer(source='incident', read_only=True)
+    # related_incidents is a ManyToMany field, so we must use many=True
+    incident_details = IncidentSerializer(source='related_incidents', many=True, read_only=True)
     
-    byline = serializers.SerializerMethodField()
-    cover_image_url = serializers.SerializerMethodField()
+    # Updated to match your model's 'featured_image' name
+    featured_image_url = serializers.SerializerMethodField()
     
     class Meta:
         model = FactCheckArticle
         fields = [
             'id',
             'title',
+            'byline',               # Now pulling directly from your model's byline field
             'verdict',
             'content',
-            'cover_image',
-            'cover_image_url',
-            'incident',
+            'featured_image',       # Corrected from cover_image
+            'featured_image_url',   # Corrected from cover_image_url
+            'related_incidents',    # Corrected from incident
             'incident_details',
-            'byline',
+            'fact_checker',         # Corrected from author
             'created_at',
             'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_byline(self, obj):
-        # Assumes a ForeignKey to the User model named 'author' or 'fact_checker'
-        if hasattr(obj, 'author') and obj.author:
-            full_name = obj.author.get_full_name().strip()
-            if full_name:
-                return f"By {full_name}"
-            return f"By {obj.author.username}"
-        return "By TruthGuard Verification Desk"
-
-    def get_cover_image_url(self, obj):
-        if not obj.cover_image:
+    def get_featured_image_url(self, obj):
+        if not obj.featured_image:
             return None
         try:
-            url = obj.cover_image.url
+            url = obj.featured_image.url
         except Exception:
-            url = str(obj.cover_image)
+            url = str(obj.featured_image)
             
         if url.startswith('http://') or url.startswith('https://'):
             return url
