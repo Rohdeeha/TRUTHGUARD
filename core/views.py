@@ -2,6 +2,31 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import cloudinary.uploader
+
+@csrf_exempt
+def custom_upload_file(request):
+    if request.method == 'POST' and request.FILES.get('upload'):
+        upload_file = request.FILES['upload']
+        try:
+            # Upload directly to Cloudinary via their Python SDK
+            upload_result = cloudinary.uploader.upload(upload_file)
+            file_url = upload_result.get('secure_url')
+            
+            # CKEditor expects a JSON response containing 'url' and 'uploaded': True
+            return JsonResponse({
+                'uploaded': True,
+                'url': file_url
+            })
+        except Exception as e:
+            return JsonResponse({
+                'uploaded': False,
+                'error': {'message': str(e)}
+            })
+    return JsonResponse({'uploaded': False, 'error': {'message': 'Invalid request.'}})
+
 class EducationalHubView(APIView):
     """Serves static educational content to the frontend."""
     permission_classes = [AllowAny]
