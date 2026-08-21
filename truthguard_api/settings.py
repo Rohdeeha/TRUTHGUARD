@@ -136,6 +136,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 CKEDITOR_5_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+CK_EDITOR_5_UPLOAD_FILE_VIEW_NAME = "custom_upload_file"
 
 STORAGES = {
     "default": {
